@@ -1,0 +1,6 @@
+exp: 000_filename_expxxx # TODO: 毎回、実験の連番を変える
+seed: 1129
+# for Debug
+debug: false
+author: hidebu
+competition: kaggle_competition # TODO: コンペ名を入れる
