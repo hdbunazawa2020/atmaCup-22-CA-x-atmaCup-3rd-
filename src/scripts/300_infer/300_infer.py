@@ -24,25 +24,42 @@ print(f"TODAY is {date}")
 # ===================================
 # utils
 # ===================================
+def load_train_yaml(train_output_dir: str, train_exp: str) -> dict:
+    """
+    学習expの保存済みyamlを読む。
+    例: experiment/<train_exp>/yaml/config.yaml
+    """
+    p = Path(train_output_dir) / train_exp / "yaml" / "config.yaml"
+    if not p.exists():
+        raise FileNotFoundError(f"train config yaml not found: {p}")
+    return OmegaConf.to_container(OmegaConf.load(p), resolve=True)
+
 def prepare_df(df: pd.DataFrame, num_features: list[str]) -> pd.DataFrame:
     df = df.copy()
+
     # angle_id
     df["angle_id"] = (df["angle"] == "top").astype(np.float32)
 
-    # n_players（rank_x flip用）
-    n_players = df.groupby(["quarter", "session", "frame"]).size().rename("n_players")
-    df = df.merge(n_players, on=["quarter", "session", "frame"], how="left")
+    # n_players（なければ作る。あればそのまま使う）
+    if "n_players" not in df.columns:
+        df["n_players"] = (
+            df.groupby(["quarter", "session", "frame"], sort=False)["angle"]
+              .transform("size")
+              .astype(np.int32)
+        )
     df["n_players"] = df["n_players"].fillna(10).astype(int)
 
-    # NaN埋め
+    # NaN埋め（num_featuresに含まれる列だけ）
     for c in num_features:
         if c not in df.columns:
             raise KeyError(f"num_feature not found: {c}")
         df[c] = df[c].fillna(0.0)
 
-    # bbox_areaはlog1pしておくと安定（学習側と揃えるならここでも）
+    # bbox_area が未logなら log1p（既にlogなら二重変換なので注意）
+    # ここは「pp側でlog済み」ならコメントアウト推奨
     if "bbox_area" in df.columns:
-        df["bbox_area"] = np.log1p(df["bbox_area"].astype(np.float32))
+        # すでにlog1p済みなら二重になるので、必要ならフラグで制御するのが理想
+        df["bbox_area"] = np.log1p(np.clip(df["bbox_area"].astype(np.float32), 0, None))
 
     return df
 
@@ -147,6 +164,13 @@ def main(cfg: DictConfig) -> None:
     # set config
     config_dict = OmegaConf.to_container(cfg["300_infer"], resolve=True)
     config = dict_to_namespace(config_dict)
+    infer_cfg = OmegaConf.to_container(cfg["300_infer"], resolve=True)
+    train_cfg = load_train_yaml(infer_cfg["train_output_dir"], infer_cfg["train_exp"])
+    if "100_train_arcface" in train_cfg:
+        train_cfg = train_cfg["100_train_arcface"]
+    merged = OmegaConf.merge(OmegaConf.create(train_cfg), OmegaConf.create(infer_cfg))
+    config = dict_to_namespace(OmegaConf.to_container(merged, resolve=True))
+
     # when debug
     if config.debug:
         config.exp = "300_infer_debug" # TODO: ファイルの連番を入れる
@@ -156,7 +180,14 @@ def main(cfg: DictConfig) -> None:
     save_config_yaml(config, outdir / "yaml" / "config.yaml")
     
     device = torch.device(config.device if torch.cuda.is_available() else "cpu")
-
+    # preprocess csv paths（infer側の pp_dir/pp_exp を優先）
+    pp_dir = Path(config.pp_dir)
+    pp_exp = config.pp_exp
+    config.train_pp_csv = str(pp_dir / pp_exp / "train_meta_pp.csv")
+    config.test_pp_csv  = str(pp_dir / pp_exp / "test_meta_pp.csv")
+    # ckpt path / output_dir（train_expから自動）
+    config.ckpt_path = str(Path(config.train_output_dir) / config.train_exp / "model" / "best.ckpt")
+    config.output_dir = str(Path(config.train_output_dir) / config.train_exp / "inference")
     # load csv
     train_df = pd.read_csv(config.train_pp_csv)
     test_df = pd.read_csv(config.test_pp_csv)

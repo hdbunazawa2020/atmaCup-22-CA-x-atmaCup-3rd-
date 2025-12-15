@@ -1,10 +1,8 @@
-import os, re, warnings, math, random, time
+import os, warnings
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-
 import cv2
 
 import hydra
@@ -21,17 +19,17 @@ from utils.data import sep, show_df, save_config_yaml, dict_to_namespace
 warnings.filterwarnings("ignore")
 
 # ===================================
-# image path utils
+# train(full image) -> crop utils
 # ===================================
 def get_image_path(row: pd.Series, image_dir: Path) -> Path:
-    """quarter__angle__session__frame.jpg を返す"""
+    """train用: {quarter}__{angle}__{session:02d}__{frame:02d}.jpg"""
     fname = f"{row['quarter']}__{row['angle']}__{int(row['session']):02d}__{int(row['frame']):02d}.jpg"
-    return image_dir / fname
+    return Path(image_dir) / fname
 
 
 def process_single_crop(args: tuple) -> tuple[int, bool, str]:
     """
-    1行分のbboxをクロップして保存。
+    trainの1行分bboxを crop して保存する（testは既にcrop配布なので使わない）
     Returns: (idx, success, saved_path_str)
     """
     idx, row, image_dir, output_dir, padding_ratio, prefix = args
@@ -56,12 +54,14 @@ def process_single_crop(args: tuple) -> tuple[int, bool, str]:
         if crop.size == 0:
             return idx, False, ""
 
-        # 衝突しないファイル名
+        # 衝突回避 prefix
         out_name = f"{prefix}_{idx}.jpg"
-        output_path = output_dir / out_name
-        cv2.imwrite(str(output_path), crop, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        output_path = Path(output_dir) / out_name
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        return idx, True, str(output_path)
+        cv2.imwrite(str(output_path), crop, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        return idx, True, str(output_path.resolve())
+
     except Exception as e:
         print(f"[crop error] idx={idx} err={e}")
         return idx, False, ""
@@ -76,12 +76,13 @@ def preprocess_crops(
     num_workers: int | None = None,
 ) -> pd.DataFrame:
     """
-    csvを読み、全bboxをクロップして output_dir に保存。
+    train_meta.csv を読み、全bboxを crop して output_dir に保存。
     返り値: 元csv + crop_path列（失敗はNaN）
     """
     if num_workers is None:
         num_workers = max(1, multiprocessing.cpu_count() - 1)
 
+    output_dir = Path(output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(csv_path)
@@ -114,69 +115,6 @@ def preprocess_crops(
 
 
 # ===================================
-# image presence meta
-# ===================================
-def build_image_presence_table(img_dir: Path) -> pd.DataFrame:
-    """
-    画像ファイル名: {quarter}__{angle}__{session}__{frame}.jpg
-    戻り値:
-      quarter, session, frame, is_top, is_side, top_path, side_path
-    """
-    rows = []
-    bad = []
-    exts = {".jpg", ".jpeg"}
-
-    files = [p for p in img_dir.rglob("*") if p.is_file() and p.suffix.lower() in exts]
-    for p in files:
-        parts = p.stem.split("__")
-        if len(parts) != 4:
-            bad.append(p.name)
-            continue
-        quarter, angle, session_str, frame_str = parts
-        if angle not in ("top", "side"):
-            bad.append(p.name)
-            continue
-        try:
-            session = int(session_str)
-            frame = int(frame_str)
-        except ValueError:
-            bad.append(p.name)
-            continue
-        rows.append({"quarter": quarter, "angle": angle, "session": session, "frame": frame, "path": str(p)})
-
-    df_files = pd.DataFrame(rows)
-    if len(df_files) == 0:
-        raise RuntimeError(f"No valid images under: {img_dir}")
-
-    df_pivot = (
-        df_files.pivot_table(
-            index=["quarter", "session", "frame"],
-            columns="angle",
-            values="path",
-            aggfunc="first",
-        )
-        .rename(columns={"top": "top_path", "side": "side_path"})
-        .reset_index()
-    )
-
-    if "top_path" not in df_pivot.columns:
-        df_pivot["top_path"] = pd.NA
-    if "side_path" not in df_pivot.columns:
-        df_pivot["side_path"] = pd.NA
-
-    df_pivot["is_top"] = df_pivot["top_path"].notna().astype("int8")
-    df_pivot["is_side"] = df_pivot["side_path"].notna().astype("int8")
-
-    df_pivot = df_pivot[["quarter", "session", "frame", "is_top", "is_side", "top_path", "side_path"]]
-    df_pivot = df_pivot.sort_values(["quarter", "session", "frame"]).reset_index(drop=True)
-
-    if bad:
-        print(f"[WARN] skipped {len(bad)} files, example={bad[:5]}")
-
-    return df_pivot
-
-
-# ===================================
 # formation features
 # ===================================
 def get_img_size_from_path(path: str):
@@ -186,56 +124,85 @@ def get_img_size_from_path(path: str):
     h, w = img.shape[:2]
     return w, h
 
-def get_angle_img_sizes(df, angle_col="angle", path_col="image_path"):
+
+def get_angle_img_sizes_from_train(train_df: pd.DataFrame, image_dir: Path) -> dict:
+    """
+    testはフル画像が無いので、img_w/img_h は train のフル画像から angle別に1枚だけ取得する。
+    """
     sizes = {}
-    for ang, g in df.groupby(angle_col):
-        p = g[path_col].dropna().iloc[0]
-        sizes[ang] = get_img_size_from_path(p)
+    for ang in ["top", "side"]:
+        sub = train_df[train_df["angle"] == ang]
+        if len(sub) == 0:
+            continue
+        p = get_image_path(sub.iloc[0], image_dir)
+        sizes[ang] = get_img_size_from_path(str(p))
+    if not sizes:
+        raise RuntimeError("failed to infer image sizes from train")
     return sizes
 
+
 def bbox_anchor_xy(df, img_w, img_h):
+    """
+    top : bbox center
+    side: bbox bottom-center（足元proxy）
+    """
     x = df["x"].to_numpy(np.float32)
     y = df["y"].to_numpy(np.float32)
     w = df["w"].to_numpy(np.float32)
     h = df["h"].to_numpy(np.float32)
 
     cx = x + 0.5 * w
-    cy = np.where(df["angle"].to_numpy() == "top", y + 0.5*h, y + h)  # top:center, side:bottom
+    cy = np.where(df["angle"].to_numpy() == "top", y + 0.5*h, y + h)
 
     nx = cx / float(img_w)
     ny = cy / float(img_h)
     return np.stack([nx, ny], axis=1).astype(np.float32)
 
+
 def normalize_points_rigid(P, eps=1e-6):
+    """
+    translation/scale/rotation を（ざっくり）除去するPCA正規化。
+    """
     c = P.mean(axis=0, keepdims=True)
     X = P - c
     s = np.sqrt((X**2).sum(axis=1).mean()) + eps
     X = X / s
 
     C = (X.T @ X) / X.shape[0]
-    eigvals, eigvecs = np.linalg.eigh(C)
+    _, eigvecs = np.linalg.eigh(C)
     v1 = eigvecs[:, 1]
     v2 = eigvecs[:, 0]
     R = np.stack([v1, v2], axis=1)
     Q = X @ R
 
+    # PCA符号の不定性を固定（180度反転対策）
     if Q[:, 0].max() < -Q[:, 0].min():
         Q *= -1.0
 
     return Q.astype(np.float32), float(s)
 
+
 def add_formation_features(df: pd.DataFrame, img_sizes: dict, key_cols=("quarter","session","frame")):
+    """
+    ※リスタート後testでも frame単位で8〜14 bbox があるので formation は計算可能
+    ただし N(=n_players) が可変なので、n_players と rank正規化を追加するのが重要。
+    """
     df = df.copy()
     df["__row_id"] = np.arange(len(df), dtype=np.int64)
 
     out_chunks = []
     for _, g in df.groupby(list(key_cols), sort=False):
         g = g.copy()
-        g["__pos"] = np.arange(len(g), dtype=np.int32)
+        n = len(g)
+        g["n_players"] = n  # ★重要：そのフレームに何bboxあるか
 
-        P = np.zeros((len(g), 2), dtype=np.float32)
+        g["__pos"] = np.arange(n, dtype=np.int32)
+        P = np.zeros((n, 2), dtype=np.float32)
 
         for ang, gg in g.groupby("angle", sort=False):
+            if ang not in img_sizes:
+                # 通常は起きないが、念のため
+                continue
             img_w, img_h = img_sizes[ang]
             P_ang = bbox_anchor_xy(gg, img_w, img_h)
             P[gg["__pos"].to_numpy()] = P_ang
@@ -243,30 +210,39 @@ def add_formation_features(df: pd.DataFrame, img_sizes: dict, key_cols=("quarter
         Qn, shape_scale = normalize_points_rigid(P)
 
         center = P.mean(axis=0)
-        dist_center = np.sqrt(((P - center) ** 2).sum(axis=1))
+        dist_center = np.sqrt(((P - center) ** 2).sum(axis=1)).astype(np.float32)
 
-        rank_x = pd.Series(P[:, 0]).rank(method="first").to_numpy(np.int32) - 1
-        rank_y = pd.Series(P[:, 1]).rank(method="first").to_numpy(np.int32) - 1
+        rank_x = (pd.Series(P[:, 0]).rank(method="first").to_numpy(np.int32) - 1).astype(np.float32)
+        rank_y = (pd.Series(P[:, 1]).rank(method="first").to_numpy(np.int32) - 1).astype(np.float32)
 
-        if len(P) >= 2:
+        # rank を Nで正規化（Nが8〜14で揺れるので重要）
+        denom = max(1, n - 1)
+        rank_x_norm = (rank_x / denom).astype(np.float32)
+        rank_y_norm = (rank_y / denom).astype(np.float32)
+
+        if n >= 2:
             D = np.sqrt(((P[:, None, :] - P[None, :, :]) ** 2).sum(axis=2)).astype(np.float32)
             np.fill_diagonal(D, np.nan)
-            nn_dist = np.nanmin(D, axis=1)
-            mean_dist = np.nanmean(D, axis=1)
+            nn_dist = np.nanmin(D, axis=1).astype(np.float32)
+            mean_dist = np.nanmean(D, axis=1).astype(np.float32)
         else:
-            nn_dist = np.full((len(P),), np.nan, dtype=np.float32)
-            mean_dist = np.full((len(P),), np.nan, dtype=np.float32)
+            nn_dist = np.full((n,), np.nan, dtype=np.float32)
+            mean_dist = np.full((n,), np.nan, dtype=np.float32)
 
         gg_out = g.drop(columns="__pos").copy()
         gg_out["fx"] = Qn[:, 0]
         gg_out["fy"] = Qn[:, 1]
-        gg_out["dist_center"] = dist_center.astype(np.float32)
+        gg_out["dist_center"] = dist_center
         gg_out["rank_x"] = rank_x.astype(np.int16)
         gg_out["rank_y"] = rank_y.astype(np.int16)
-        gg_out["nn_dist"] = nn_dist.astype(np.float32)
-        gg_out["mean_dist"] = mean_dist.astype(np.float32)
+        gg_out["rank_x_norm"] = rank_x_norm
+        gg_out["rank_y_norm"] = rank_y_norm
+        gg_out["nn_dist"] = nn_dist
+        gg_out["mean_dist"] = mean_dist
         gg_out["shape_scale"] = np.float32(shape_scale)
-        gg_out["bbox_area"] = (gg_out["w"].to_numpy(np.float32) * gg_out["h"].to_numpy(np.float32))
+
+        bbox_area = (gg_out["w"].to_numpy(np.float32) * gg_out["h"].to_numpy(np.float32))
+        gg_out["bbox_area"] = np.log1p(bbox_area)  # ★log圧縮推奨
         gg_out["bbox_aspect"] = (gg_out["w"].to_numpy(np.float32) / (gg_out["h"].to_numpy(np.float32) + 1e-6))
 
         out_chunks.append(gg_out)
@@ -286,59 +262,52 @@ def main(cfg: DictConfig) -> None:
 
     if config.debug:
         config.exp = "000_pp_debug"
+
     savedir = Path(config.output_dir) / config.exp
     (savedir / "yaml").mkdir(parents=True, exist_ok=True)
     save_config_yaml(config, savedir / "yaml" / "config.yaml")
 
-    DATA_DIR  = Path(config.data_dir)
-    IMAGE_DIR = Path(config.image_dir)
+    DATA_DIR  = Path(config.data_dir).resolve()
+    IMAGE_DIR = Path(config.image_dir).resolve()
 
-    # crops dirs
-    CROP_ROOT = Path(config.crop_dir).parent  # ../data/processed/crops
+    # crops dir（ここは root をそのまま使う）
+    CROP_ROOT  = Path(config.crop_dir).resolve()
     CROP_TRAIN = CROP_ROOT / "train"
-    CROP_TEST = CROP_ROOT / "test"
-    CROP_TEST_TOP = CROP_ROOT / "test_top"
 
     # ======================
-    # 1) Build image meta (top/side presence)
-    # ======================
-    img_meta = build_image_presence_table(IMAGE_DIR)
-    print(img_meta.groupby(["is_top","is_side"]).size().rename("n_frames"))
-    sep("img_meta"); show_df(img_meta, 5, True)
-
-    # ======================
-    # 2) Read raw meta tables
+    # 1) Read raw meta
     # ======================
     train_raw = pd.read_csv(DATA_DIR / "train_meta.csv")
-    test_raw = pd.read_csv(DATA_DIR / "test_meta.csv")
-    test_top_raw = pd.read_csv(DATA_DIR / "test_top_meta.csv")
+    test_raw  = pd.read_csv(DATA_DIR / "test_meta.csv")
 
-    # dtype safety
-    for df in (train_raw, test_raw, test_top_raw):
-        df["session"] = df["session"].astype(int)
-        df["frame"] = df["frame"].astype(int)
+    # trainは session/frame がある
+    train_raw["session"] = train_raw["session"].astype(int)
+    train_raw["frame"] = train_raw["frame"].astype(int)
 
-    # merge image paths (for img size lookup + optional debug)
-    def attach_image_paths(df):
-        df = df.merge(img_meta, on=["quarter","session","frame"], how="left", validate="m:1")
-        df["image_path"] = np.where(df["angle"]=="top", df["top_path"], df["side_path"])
-        df["paired_path"] = np.where(df["angle"]=="top", df["side_path"], df["top_path"])
-        return df
+    # testは session_no / frame_in_session を session/frame に寄せる（あなたの確認どおり存在する）
+    test_raw["session"] = test_raw["session_no"].astype(int)
+    test_raw["frame"] = test_raw["frame_in_session"].astype(int)
 
-    train = attach_image_paths(train_raw)
-    test  = attach_image_paths(test_raw)
-    test_top = attach_image_paths(test_top_raw)
-
-    print("train image_path missing rate:", train["image_path"].isna().mean())
-    print("test  image_path missing rate:",  test["image_path"].isna().mean())
-    print("test_top image_path missing rate:", test_top["image_path"].isna().mean())
+    # testは配布cropを使う（rel_path）
+    test_raw["crop_path"] = test_raw["rel_path"].map(lambda p: str((DATA_DIR / p).resolve()))
 
     # ======================
-    # 3) Crop train/test/test_top (collision-free names) and add crop_path
+    # 2) train: full image path（img size取得にも使う）
     # ======================
-    # ここで「csv -> crop_path付きdf」を作る
+    train = train_raw.copy()
+    train["image_path"] = train.apply(lambda r: str(get_image_path(r, IMAGE_DIR).resolve()), axis=1)
+    # paired_path はあっても良いが、必須ではないので今回は省略（必要なら復活）
+    train["paired_path"] = pd.NA
+
+    # testはフル画像無しなので image_path は NA のまま
+    test = test_raw.copy()
+    test["image_path"] = pd.NA
+    test["paired_path"] = pd.NA
+
+    # ======================
+    # 3) train crops only（testは作らない）
+    # ======================
     if config.use_crops:
-        # クロップは raw csv を使う（列が少なく高速）
         train_crop_df = preprocess_crops(
             csv_path=DATA_DIR / "train_meta.csv",
             image_dir=IMAGE_DIR,
@@ -347,66 +316,30 @@ def main(cfg: DictConfig) -> None:
             padding_ratio=float(config.padding_ratio),
             num_workers=None,
         )
-        test_crop_df = preprocess_crops(
-            csv_path=DATA_DIR / "test_meta.csv",
-            image_dir=IMAGE_DIR,
-            output_dir=CROP_TEST,
-            prefix="test",
-            padding_ratio=float(config.padding_ratio),
-            num_workers=None,
-        )
-        test_top_crop_df = preprocess_crops(
-            csv_path=DATA_DIR / "test_top_meta.csv",
-            image_dir=IMAGE_DIR,
-            output_dir=CROP_TEST_TOP,
-            prefix="testtop",
-            padding_ratio=float(config.padding_ratio),
-            num_workers=None,
-        )
-
-        # 元のtrain/test/test_topに crop_path を付与（行順一致で join）
+        assert len(train_crop_df) == len(train), "train row mismatch"
         train["crop_path"] = train_crop_df["crop_path"].values
-        test["crop_path"] = test_crop_df["crop_path"].values
-        test_top["crop_path"] = test_top_crop_df["crop_path"].values
     else:
-        train["crop_path"] = train["image_path"]  # fallback（非推奨）
-        test["crop_path"] = test["image_path"]
-        test_top["crop_path"] = test_top["image_path"]
+        # 非推奨：学習側でフル画像+ bbox crop が必要になる
+        train["crop_path"] = train["image_path"]
 
     # ======================
-    # 4) Formation features
+    # 4) formation features（train/test両方に付与可能）
+    #    img_sizesは train のフル画像から推定する
     # ======================
-    union_df = pd.concat(
-        [
-            train[["angle","image_path"]].dropna(),
-            test[["angle","image_path"]].dropna(),
-            test_top[["angle","image_path"]].dropna(),
-        ],
-        ignore_index=True
-    ).drop_duplicates()
-
-    img_sizes = get_angle_img_sizes(union_df, angle_col="angle", path_col="image_path")
+    img_sizes = get_angle_img_sizes_from_train(train, IMAGE_DIR)
     print("img_sizes:", img_sizes)
 
     train_f = add_formation_features(train, img_sizes=img_sizes)
     test_f  = add_formation_features(test,  img_sizes=img_sizes)
-    test_top_f = add_formation_features(test_top, img_sizes=img_sizes)
-
-    # submission order guarantee
-    assert len(test_f) == len(test_raw), "row count changed for test!"
-    assert len(test_top_f) == len(test_top_raw), "row count changed for test_top!"
-
-    sep("train_f"); show_df(train_f, 3, True)
-    sep("test_f"); show_df(test_f, 3, True)
 
     # ======================
     # 5) Save
     # ======================
     train_f.to_csv(savedir / "train_meta_pp.csv", index=False)
     test_f.to_csv(savedir / "test_meta_pp.csv", index=False)
-    test_top_f.to_csv(savedir / "test_top_meta_pp.csv", index=False)
 
-    print("saved:", savedir)
+    print("saved:", savedir.resolve())
+
 
 if __name__ == "__main__":
     main()

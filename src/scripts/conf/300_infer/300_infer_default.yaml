@@ -2,53 +2,17 @@ exp: 300_infer_exp000
 seed: 1129
 debug: false
 
-# ===== paths =====
+# 学習expだけ指定
 train_exp: 100_train_arcface_exp000
 train_output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
 
-# ckpt（best.ckpt の場所）
-ckpt_path: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment/100_train_arcface_exp000/model/best.ckpt
-
-# preprocess outputs
-pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
+# preprocess（推論で使うppだけは明示）
 pp_exp: 000_prepeocess_ver00
-train_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/train_meta_pp.csv
-test_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/test_meta_pp.csv
+pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
 
-# output
-output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment/100_train_arcface_exp000/inference
-
-# ===== model config (must match training) =====
-model_name: efficientnet_b0
-num_classes: 11
-embedding_dim: 512
-pretrained: false
-arcface_s: 30.0
-arcface_m: 0.5
-use_ema: true
-ema_decay: 0.995
-
-# ===== dataloader =====
-img_size: 224
+# 推論だけの設定（trainと独立）
+tta_hflip: true
+unknown_threshold: 0.815
 batch_size: 256
 num_workers: 8
 device: cuda
-
-# ===== features =====
-use_tabular: true
-num_features:
-  - angle_id
-  - fx
-  - fy
-  - dist_center
-  - rank_x
-  - rank_y
-  - nn_dist
-  - mean_dist
-  - shape_scale
-  - bbox_area
-  - bbox_aspect
-
-# ===== TTA / threshold =====
-tta_hflip: true
-unknown_threshold: 0.825  # ←200_optimize_threshold の median 推奨（or nonzero medianで0.84）

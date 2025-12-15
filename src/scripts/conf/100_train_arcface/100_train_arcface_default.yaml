@@ -7,9 +7,9 @@ author: hidebu
 # デバイス設定
 device: cuda
 # WandB設定
-use_wandb: false
+use_wandb: true
 wandb_project: atmacup22
-wandb_run_name: baseline  # null の場合は wandb_run_name: null と記述
+wandb_run_name: new_atmacup_22  # null の場合は wandb_run_name: null と記述
 
 # ===== data ======
 # paths
@@ -20,10 +20,10 @@ pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
 output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
 use_crops: true  # 高速読み込みのため事前クロップした画像を使用
 # preprocessデータ
-pp_exp: 000_prepeocess_ver00  # ←あなたの preprocess の exp 名に合わせて変更
+
+pp_exp: 000_prepeocess_ver00
 train_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/train_meta_pp.csv
 test_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/test_meta_pp.csv
-test_top_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/test_top_meta_pp.csv
 # ===== split =====
 split_method: holdout  # holdout / sgkf
 val_quarter_from: Q2-016
@@ -46,11 +46,14 @@ num_features:
   - dist_center
   - rank_x
   - rank_y
+  - rank_x_norm
+  - rank_y_norm
   - nn_dist
   - mean_dist
   - shape_scale
   - bbox_area
   - bbox_aspect
+  - n_players
 # =====  ArcFace設定 ===== 
 arcface_s: 30.0
 arcface_m: 0.5

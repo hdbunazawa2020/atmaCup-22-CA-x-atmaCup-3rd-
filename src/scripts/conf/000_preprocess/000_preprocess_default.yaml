@@ -1,13 +1,18 @@
-exp: 000_prepeocess_ver00 # TODO: 毎回、実験の連番を変える
+exp: 000_prepeocess_ver00  # TODO: 毎回、実験の連番を変える
 seed: 1129
-# for Debug
 debug: false
 author: hidebu
-competition: atmacup22 # TODO: コンペ名を入れる
-# パス設定
+competition: atmacup22
+
+# パス設定（Hydra が cwd を変えるので基本は絶対パス推奨）
 data_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/raw
 image_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/raw/images
-crop_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/crops  # trainデータのクロップ画像の保存先
+
+# train の事前 crop 出力先（root まで）
+crop_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/crops
 output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
-use_crops: true  # 高速読み込みのため事前クロップした画像を使用
+
+# use_crops は「train の事前 crop を作るか」
+# test は rel_path の crop が配布されるため、このフラグとは独立に常に crop を使う
+use_crops: true
 padding_ratio: 0.1

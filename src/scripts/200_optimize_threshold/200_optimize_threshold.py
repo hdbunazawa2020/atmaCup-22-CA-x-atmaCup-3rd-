@@ -61,12 +61,12 @@ def main(cfg: DictConfig) -> None:
     # when debug
     if config.debug:
         config.exp = "200_optimize_threshold_debug" # TODO: ファイルの連番を入れる
-
     savedir = Path(config.train_output_dir) / config.train_exp / "threshold"
     savedir.mkdir(parents=True, exist_ok=True)
     save_config_yaml(config, savedir / "config.yaml")
 
     # OOF: y, pred, max_sim
+    config.oof_csv = Path(config.train_output_dir) / config.train_exp / "oof" / "oof_df.csv"
     oof = pd.read_csv(config.oof_csv)
     if not {"y", "pred", "max_sim"}.issubset(set(oof.columns)):
         raise ValueError(f"oof_df.csv must contain y,pred,max_sim. got {oof.columns}")
@@ -161,6 +161,6 @@ def main(cfg: DictConfig) -> None:
     th = df_runs["best_thr"].to_numpy()
     print("median_nonzero:", float(np.median(th[th > 0])))
     print("mean_nonzero:", float(np.mean(th[th > 0])))
-    
+
 if __name__ == "__main__":
     main()

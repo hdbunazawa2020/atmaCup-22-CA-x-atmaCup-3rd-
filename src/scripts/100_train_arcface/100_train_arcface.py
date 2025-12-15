@@ -105,14 +105,15 @@ def main(cfg: DictConfig) -> None:
     os.makedirs(savedir / "oof", exist_ok=True)
     os.makedirs(savedir / "yaml", exist_ok=True)
     os.makedirs(savedir / "model", exist_ok=True)
-    
+    save_config_yaml(config, outdir / "yaml" / "config.yaml")    
+
     # wandb
     wandb_logger = None
     if config.use_wandb:
         set_wandb(config)  # あなたの utils 側に寄せる
         wandb_logger = WandbLogger(
             project=config.wandb_project,
-            name=config.wandb_run_name,
+            name=config.exp,
             save_dir=str(savedir),
             log_model=True,
         )
