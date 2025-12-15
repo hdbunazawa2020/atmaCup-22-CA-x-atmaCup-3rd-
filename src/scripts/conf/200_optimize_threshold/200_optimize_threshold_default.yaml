@@ -1,0 +1,27 @@
+exp: 200_optimize_threshold_exp000
+seed: 1129
+debug: false
+
+# 参照する学習exp（oofがある場所）
+train_exp: 100_train_arcface_exp000
+train_output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
+
+# PP CSV（label_idやgroup情報を読む）
+pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
+pp_exp: 000_prepeocess_ver00
+train_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/train_meta_pp.csv
+
+# OOF（max_simを読む）
+oof_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment/100_train_arcface_exp000/oof/oof_df.csv
+
+# 疑似unknownの作り方
+unknown_mode: holdout_ids   # holdout_ids / none
+holdout_ids: [0,1,2,3,4,5,6,7,8,9]   # 例：ID=9 を未知扱いにする（複数でもOK）
+
+# threshold sweep
+thr_min: 0.0
+thr_max: 0.95
+thr_step: 0.01
+
+# 評価指標
+metric: macro_f1            # macro_f1 / accuracy
