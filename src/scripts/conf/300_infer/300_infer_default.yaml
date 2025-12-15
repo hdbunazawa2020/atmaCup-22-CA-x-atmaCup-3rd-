@@ -1,18 +1,29 @@
-exp: 300_infer_exp000
+exp: 100_train_arcface_exp001
 seed: 1129
 debug: false
 
-# 学習expだけ指定
-train_exp: 100_train_arcface_exp000
+# exp配下に全部入れる
 train_output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
 
 # preprocess（推論で使うppだけは明示）
 pp_exp: 000_prepeocess_ver00
 pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
 
-# 推論だけの設定（trainと独立）
+# 推論設定
 tta_hflip: true
-unknown_threshold: 0.815
 batch_size: 256
 num_workers: 8
 device: cuda
+
+# unknown判定（200と合わせる）
+unknown_threshold: 0.7750000000000001
+margin_threshold: 0.000
+combine_mode: or        # "or" 推奨。andにすると「両方満たした時だけunknown」
+
+# 200の best_2d.txt を読み込んで unknown_threshold/margin_threshold を自動設定したい場合
+load_best_threshold: false
+best_threshold_file: best_2d.txt
+best_threshold_kind: median_nonzero  # median / median_nonzero
+
+# proto/test_emb をメタ一致なら再利用（閾値だけ変えて試すのが爆速になります）
+reuse_cache: true

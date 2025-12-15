@@ -105,7 +105,7 @@ def main(cfg: DictConfig) -> None:
     os.makedirs(savedir / "oof", exist_ok=True)
     os.makedirs(savedir / "yaml", exist_ok=True)
     os.makedirs(savedir / "model", exist_ok=True)
-    save_config_yaml(config, outdir / "yaml" / "config.yaml")    
+    save_config_yaml(config, savedir / "yaml" / "config.yaml")    
 
     # wandb
     wandb_logger = None
@@ -230,16 +230,25 @@ def main(cfg: DictConfig) -> None:
     # prototypes
     prototypes = compute_prototypes(module, train_loader, device, num_classes=config.num_classes)
 
-    scores = emb @ prototypes.T
-    pred = scores.argmax(axis=1)
+    scores = emb @ prototypes.T  # (N,C)
+
+    top2_idx = np.argpartition(-scores, kth=1, axis=1)[:, :2]
+    top2_val = np.take_along_axis(scores, top2_idx, axis=1)
+    order = np.argsort(-top2_val, axis=1)
+
+    top1 = top2_val[np.arange(len(scores)), order[:, 0]]
+    top2 = top2_val[np.arange(len(scores)), order[:, 1]]
+    pred = top2_idx[np.arange(len(scores)), order[:, 0]]
+    margin = top1 - top2
 
     oof_df = pd.DataFrame({
         "y": y,
         "pred": pred,
-        "max_sim": scores.max(axis=1),
+        "max_sim": top1,
+        "second_sim": top2,
+        "margin": margin,
     })
-    oof_df.to_csv(oof_dir / "oof_df.csv", index=False)
-    print("saved oof:", oof_dir)
+    oof_df.to_csv(oof_dir/"oof_df.csv", index=False)
 
 if __name__ == "__main__":
     main()

@@ -1,19 +1,19 @@
-exp: 200_optimize_threshold_exp000
-seed: 1129
-debug: false
-
-# 参照する学習exp（oofがある場所）
-train_exp: 100_train_arcface_exp000
+exp: 100_train_arcface_exp001
 train_output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
 
-# 疑似unknownの作り方
-unknown_mode: holdout_ids   # holdout_ids / none
-holdout_ids: [0,1,2,3,4,5,6,7,8,9]   # 例：ID=9 を未知扱いにする（複数でもOK）
+metric: macro_f1
+unknown_mode: holdout_ids
+holdout_ids: [0,1,2,3,4,5,6,7,8,9]
 
-# threshold sweep
-thr_min: 0.0
-thr_max: 0.95
+thr_min: 0.60
+thr_max: 0.90
 thr_step: 0.01
 
-# 評価指標
-metric: macro_f1            # macro_f1 / accuracy
+mthr_min: 0.00
+mthr_max: 0.10
+mthr_step: 0.005
+
+combine_mode: or     # ★ 300_infer も同じに
+save_grid: false
+debug: false
+seed: 1129

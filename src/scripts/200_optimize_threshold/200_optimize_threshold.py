@@ -1,4 +1,5 @@
-import os
+from __future__ import annotations
+
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -6,161 +7,283 @@ import hydra
 from omegaconf import DictConfig, OmegaConf
 from sklearn.metrics import f1_score, accuracy_score
 
-# original
 import sys
-sys.path.append(r"..")
-import utils
+sys.path.append("..")  # src/scripts から実行想定
 from utils.data import save_config_yaml, dict_to_namespace
 
 from datetime import datetime
 date = datetime.now().strftime("%Y%m%d")
 print(f"TODAY is {date}")
 
+
 # ========================
-# utils
+# scoring
 # ========================
-def score_with_unknown(y_true, pred_class, max_sim, thr, unknown_ids=None, metric="macro_f1"):
+def _labels_with_unknown(y: np.ndarray, pred: np.ndarray) -> list[int]:
+    # -1 を含めて評価（macro_f1のlabelsに出現クラスだけ入れる）
+    labels = np.unique(np.concatenate([y, pred])).tolist()
+    return labels
+
+
+def score_with_unknown_1d(
+    y_true: np.ndarray,
+    pred_class: np.ndarray,
+    max_sim: np.ndarray,
+    thr_sim: float,
+    unknown_ids: list[int] | None = None,
+    metric: str = "macro_f1",
+) -> float:
     """
-    pred_class: valでの argmax 予測（0..K-1）
-    max_sim:    valでの最大類似度
-    thr:        unknown閾値。max_sim < thr は -1 扱い
-    unknown_ids: y_trueのうち、指定IDを疑似unknown(-1)扱いにする
+    1D: max_sim < thr_sim を unknown(-1) にする
     """
     y = y_true.copy()
-    if unknown_ids is not None and len(unknown_ids) > 0:
+    if unknown_ids:
         y = np.where(np.isin(y, unknown_ids), -1, y)
 
     pred = pred_class.copy()
-    pred = np.where(max_sim < thr, -1, pred)
+    pred = np.where(max_sim < thr_sim, -1, pred)
 
-    # -1 を含めて評価（クラスに -1 を含める）
-    labels = np.unique(np.concatenate([y, pred]))
-    labels = labels.tolist()
-
+    labels = _labels_with_unknown(y, pred)
     if metric == "macro_f1":
-        return f1_score(y, pred, average="macro", labels=labels)
-    elif metric == "accuracy":
-        return accuracy_score(y, pred)
+        return float(f1_score(y, pred, average="macro", labels=labels))
+    if metric == "accuracy":
+        return float(accuracy_score(y, pred))
+    raise ValueError(f"unknown metric: {metric}")
+
+
+def score_with_unknown_2d(
+    y_true: np.ndarray,
+    pred_class: np.ndarray,
+    max_sim: np.ndarray,
+    second_sim: np.ndarray,
+    thr_sim: float,
+    thr_margin: float,
+    unknown_ids: list[int] | None = None,
+    metric: str = "macro_f1",
+    combine_mode: str = "or",   # "or" or "and"
+) -> float:
+    """
+    2D: max_sim と margin の閾値で unknown(-1) を判定
+      - combine_mode="or":  (max_sim < thr_sim) OR (margin < thr_margin) -> unknown
+      - combine_mode="and": (max_sim < thr_sim) AND (margin < thr_margin) -> unknown
+    """
+    y = y_true.copy()
+    if unknown_ids:
+        y = np.where(np.isin(y, unknown_ids), -1, y)
+
+    pred = pred_class.copy()
+    margin = max_sim - second_sim
+
+    cond_sim = (max_sim < thr_sim)
+    cond_m   = (margin < thr_margin)
+
+    if combine_mode == "or":
+        unk = cond_sim | cond_m
+    elif combine_mode == "and":
+        unk = cond_sim & cond_m
     else:
-        raise ValueError(metric)
+        raise ValueError(f"unknown combine_mode: {combine_mode}")
+
+    pred = np.where(unk, -1, pred)
+
+    labels = _labels_with_unknown(y, pred)
+    if metric == "macro_f1":
+        return float(f1_score(y, pred, average="macro", labels=labels))
+    if metric == "accuracy":
+        return float(accuracy_score(y, pred))
+    raise ValueError(f"unknown metric: {metric}")
 
 
-# ===================================
+# ========================
+# diagnostics
+# ========================
+def save_margin_quantiles(oof: pd.DataFrame, outdir: Path) -> None:
+    oof = oof.copy()
+    oof["margin"] = oof["max_sim"] - oof["second_sim"]
+
+    qs = [0.001, 0.01, 0.05, 0.10, 0.25, 0.50, 0.75, 0.90, 0.95, 0.99]
+    summary = pd.DataFrame({
+        "quantile": qs,
+        "max_sim":   [oof["max_sim"].quantile(q) for q in qs],
+        "second_sim":[oof["second_sim"].quantile(q) for q in qs],
+        "margin":    [oof["margin"].quantile(q) for q in qs],
+    })
+    summary.to_csv(outdir / "margin_quantiles.csv", index=False)
+
+    # 追加の簡易統計も保存
+    stats = {
+        "n": int(len(oof)),
+        "margin_lt0_ratio": float((oof["margin"] < 0).mean()),
+        "margin_eq0_ratio": float((oof["margin"] == 0).mean()),
+    }
+    for t in [0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.05]:
+        stats[f"margin_lt_{t}"] = float((oof["margin"] < t).mean())
+
+    pd.DataFrame([stats]).to_csv(outdir / "margin_stats.csv", index=False)
+
+    print("OOF size:", len(oof))
+    print(summary.to_string(index=False))
+    print("\nmargin < 0 ratio:", stats["margin_lt0_ratio"])
+    print("margin == 0 ratio:", stats["margin_eq0_ratio"])
+    for t in [0.0, 0.005, 0.01, 0.015, 0.02, 0.03, 0.05]:
+        print(f"margin < {t:>5}: {stats[f'margin_lt_{t}']:.4f}")
+
+
+# ========================
 # main
-# ===================================
-# TODO: config_pathをこのスクリプトからの相対パスにする
+# ========================
 @hydra.main(version_base=None, config_path="../conf", config_name="config.yaml")
 def main(cfg: DictConfig) -> None:
-    """description
-    Args:
-        cfg (DictConf): config
-    """
-    # set config
-    config_dict = OmegaConf.to_container(cfg["200_optimize_threshold"], resolve=True)
-    config = dict_to_namespace(config_dict)
-    # when debug
-    if config.debug:
-        config.exp = "200_optimize_threshold_debug" # TODO: ファイルの連番を入れる
-    savedir = Path(config.train_output_dir) / config.train_exp / "threshold"
+    # load config block
+    infer_cfg = OmegaConf.to_container(cfg["200_optimize_threshold"], resolve=True)
+    config = dict_to_namespace(infer_cfg)
+
+    # debug exp name
+    if getattr(config, "debug", False):
+        config.exp = "200_optimize_threshold_debug"
+
+    # outputs (exp配下に全部入れる)
+    exp_dir = Path(config.train_output_dir) / str(config.exp)
+    savedir = exp_dir / "threshold"
     savedir.mkdir(parents=True, exist_ok=True)
-    save_config_yaml(config, savedir / "config.yaml")
+    save_config_yaml(config, savedir / "200_config.yaml")
 
-    # OOF: y, pred, max_sim
-    config.oof_csv = Path(config.train_output_dir) / config.train_exp / "oof" / "oof_df.csv"
-    oof = pd.read_csv(config.oof_csv)
-    if not {"y", "pred", "max_sim"}.issubset(set(oof.columns)):
-        raise ValueError(f"oof_df.csv must contain y,pred,max_sim. got {oof.columns}")
+    # load oof
+    oof_csv = exp_dir / "oof" / "oof_df.csv"
+    if not oof_csv.exists():
+        raise FileNotFoundError(f"oof_df.csv not found: {oof_csv}")
 
-    y_true = oof["y"].to_numpy().astype(int)
-    pred_class = oof["pred"].to_numpy().astype(int)
-    max_sim = oof["max_sim"].to_numpy().astype(float)
+    oof = pd.read_csv(oof_csv)
+    need = {"y", "pred", "max_sim", "second_sim"}
+    if not need.issubset(set(oof.columns)):
+        raise ValueError(f"oof_df.csv must contain {need}. got {list(oof.columns)}")
 
-    # unknown ids
-    if config.unknown_mode == "holdout_ids":
-        unknown_ids = list(config.holdout_ids)
-    else:
-        unknown_ids = []
-    # unknown ids list
-    if config.unknown_mode == "holdout_ids":
-        holdout_list = list(config.holdout_ids)
-    else:
-        holdout_list = []
-    thrs = np.arange(config.thr_min, config.thr_max + 1e-9, config.thr_step)
+    # diagnostics
+    save_margin_quantiles(oof, savedir)
 
-    # --- run per holdout id ---
-    records = []
+    y_true = oof["y"].to_numpy(dtype=int)
+    pred_class = oof["pred"].to_numpy(dtype=int)
+    max_sim = oof["max_sim"].to_numpy(dtype=float)
+    second_sim = oof["second_sim"].to_numpy(dtype=float)
+
+    metric = str(getattr(config, "metric", "macro_f1"))
+    unknown_mode = str(getattr(config, "unknown_mode", "holdout_ids"))
+    holdout_list = list(getattr(config, "holdout_ids", [])) if unknown_mode == "holdout_ids" else []
+
+    # search space
+    thrs = np.arange(float(config.thr_min), float(config.thr_max) + 1e-9, float(config.thr_step))
+    mthrs = np.arange(float(config.mthr_min), float(config.mthr_max) + 1e-9, float(config.mthr_step))
+
+    combine_mode = str(getattr(config, "combine_mode", "or"))  # 推奨: or
+    save_grid = bool(getattr(config, "save_grid", False))
+
+    # baseline（unknown無しのスコアも残す：CVメモ用）
+    base_score = float(f1_score(y_true, pred_class, average="macro"))
+    with open(savedir / "baseline.txt", "w") as f:
+        f.write(f"macro_f1_no_unknown={base_score}\n")
+    print("\n[baseline] macro_f1 (no unknown):", base_score)
+
     if len(holdout_list) == 0:
-        # no unknown simulation
-        scores = []
-        for thr in thrs:
-            s = score_with_unknown(
-                y_true=y_true,
-                pred_class=pred_class,
-                max_sim=max_sim,
-                thr=float(thr),
-                unknown_ids=[],
-                metric=config.metric,
-            )
-            scores.append(s)
-        scores = np.array(scores)
-        best_i = int(scores.argmax())
-        records.append({
-            "holdout_id": None,
-            "best_thr": float(thrs[best_i]),
-            "best_score": float(scores[best_i]),
-        })
-    else:
-        for hid in holdout_list:
-            scores = []
-            for thr in thrs:
-                s = score_with_unknown(
+        print("\n[WARN] holdout_ids is empty. Nothing to optimize.")
+        return
+
+    records = []
+    for hid in holdout_list:
+        hid = int(hid)
+        best_score = -1e9
+        best_thr = None
+        best_mthr = None
+
+        grid_records = []  # (holdout_id, thr, mthr, score)
+
+        for thr_sim in thrs:
+            for thr_margin in mthrs:
+                s = score_with_unknown_2d(
                     y_true=y_true,
                     pred_class=pred_class,
                     max_sim=max_sim,
-                    thr=float(thr),
-                    unknown_ids=[int(hid)],
-                    metric=config.metric,
+                    second_sim=second_sim,
+                    thr_sim=float(thr_sim),
+                    thr_margin=float(thr_margin),
+                    unknown_ids=[hid],
+                    metric=metric,
+                    combine_mode=combine_mode,
                 )
-                scores.append(s)
-            scores = np.array(scores)
-            best_i = int(scores.argmax())
-            records.append({
-                "holdout_id": int(hid),
-                "best_thr": float(thrs[best_i]),
-                "best_score": float(scores[best_i]),
-            })
 
-    df_runs = pd.DataFrame(records).sort_values(["holdout_id"], na_position="first")
-    df_runs.to_csv(savedir / "thr_runs.csv", index=False)
+                if save_grid:
+                    grid_records.append((hid, float(thr_sim), float(thr_margin), float(s)))
 
-    # --- summary ---
-    thrs_best = df_runs["best_thr"].to_numpy(np.float32)
-    scores_best = df_runs["best_score"].to_numpy(np.float32)
+                if s > best_score:
+                    best_score = float(s)
+                    best_thr = float(thr_sim)
+                    best_mthr = float(thr_margin)
 
-    thr_mean = float(np.mean(thrs_best))
-    thr_median = float(np.median(thrs_best))
-    thr_std = float(np.std(thrs_best))
+        records.append({
+            "holdout_id": hid,
+            "best_score": best_score,
+            "best_thr": best_thr,
+            "best_mthr": best_mthr,
+        })
 
-    score_mean = float(np.mean(scores_best))
-    score_median = float(np.median(scores_best))
+        if save_grid:
+            grid_df = pd.DataFrame(grid_records, columns=["holdout_id", "thr", "mthr", "score"])
+            grid_df.to_csv(savedir / f"thr2d_grid_id{hid}.csv", index=False)
 
-    with open(savedir / "summary.txt", "w") as f:
-        f.write(f"metric={config.metric}\n")
-        f.write(f"holdout_ids={holdout_list}\n")
-        f.write(f"thr_mean={thr_mean}\n")
+    df_runs = pd.DataFrame(records).sort_values("holdout_id")
+    df_runs.to_csv(savedir / "thr2d_runs.csv", index=False)
+
+    thr_median = float(np.median(df_runs["best_thr"].values))
+    mthr_median = float(np.median(df_runs["best_mthr"].values))
+
+    # thr==0 の変なケースを避けたいなら nonzero も出す
+    nz = df_runs[df_runs["best_thr"] > 0.0]
+    thr_median_nz = float(np.median(nz["best_thr"].values)) if len(nz) else thr_median
+    mthr_median_nz = float(np.median(nz["best_mthr"].values)) if len(nz) else mthr_median
+
+    # 代表CVスコアを「median閾値」で計算して保存（これが“CVはどれ？”の答え）
+    # holdout_ids を全部 unknown 扱いにする（=疑似unknown混在評価）
+    cv_score_median = score_with_unknown_2d(
+        y_true=y_true,
+        pred_class=pred_class,
+        max_sim=max_sim,
+        second_sim=second_sim,
+        thr_sim=thr_median,
+        thr_margin=mthr_median,
+        unknown_ids=[int(x) for x in holdout_list],
+        metric=metric,
+        combine_mode=combine_mode,
+    )
+    cv_score_median_nz = score_with_unknown_2d(
+        y_true=y_true,
+        pred_class=pred_class,
+        max_sim=max_sim,
+        second_sim=second_sim,
+        thr_sim=thr_median_nz,
+        thr_margin=mthr_median_nz,
+        unknown_ids=[int(x) for x in holdout_list],
+        metric=metric,
+        combine_mode=combine_mode,
+    )
+
+    with open(savedir / "best_2d.txt", "w") as f:
         f.write(f"thr_median={thr_median}\n")
-        f.write(f"thr_std={thr_std}\n")
-        f.write(f"best_score_mean={score_mean}\n")
-        f.write(f"best_score_median={score_median}\n")
+        f.write(f"mthr_median={mthr_median}\n")
+        f.write(f"thr_median_nonzero={thr_median_nz}\n")
+        f.write(f"mthr_median_nonzero={mthr_median_nz}\n")
+        f.write(f"metric={metric}\n")
+        f.write(f"combine_mode={combine_mode}\n")
+        f.write(f"holdout_ids={holdout_list}\n")
+        f.write(f"baseline_macro_f1_no_unknown={base_score}\n")
+        f.write(f"cv_score_median={cv_score_median}\n")
+        f.write(f"cv_score_median_nonzero={cv_score_median_nz}\n")
 
+    print("\n", df_runs)
+    print("thr_median:", thr_median, "mthr_median:", mthr_median)
+    print("thr_median_nonzero:", thr_median_nz, "mthr_median_nonzero:", mthr_median_nz)
+    print(f"[cv] ({combine_mode}) score @ median thr/mthr:", cv_score_median)
+    print(f"[cv] ({combine_mode}) score @ median_nonzero thr/mthr:", cv_score_median_nz)
     print("saved:", savedir)
-    print(df_runs)
-    print(f"[thr] mean={thr_mean:.3f} median={thr_median:.3f} std={thr_std:.3f}")
-    print(f"[score] mean={score_mean:.3f} median={score_median:.3f}")
 
-    th = df_runs["best_thr"].to_numpy()
-    print("median_nonzero:", float(np.median(th[th > 0])))
-    print("mean_nonzero:", float(np.mean(th[th > 0])))
 
 if __name__ == "__main__":
     main()
