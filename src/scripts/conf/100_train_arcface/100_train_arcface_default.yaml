@@ -1,0 +1,67 @@
+# ===== General ===== 
+exp: 100_train_arcface_exp000 # TODO: 毎回、実験の連番を変える
+seed: 1129
+# for Debug
+debug: false
+author: hidebu
+# デバイス設定
+device: cuda
+# WandB設定
+use_wandb: false
+wandb_project: atmacup22
+wandb_run_name: baseline  # null の場合は wandb_run_name: null と記述
+
+# ===== data ======
+# paths
+data_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/raw
+image_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/raw/images
+crop_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/crops  # trainデータのクロップ画像の保存先
+pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
+output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
+use_crops: true  # 高速読み込みのため事前クロップした画像を使用
+# preprocessデータ
+pp_exp: 000_prepeocess_ver00  # ←あなたの preprocess の exp 名に合わせて変更
+train_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/train_meta_pp.csv
+test_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/test_meta_pp.csv
+test_top_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/test_top_meta_pp.csv
+# ===== split =====
+split_method: holdout  # holdout / sgkf
+val_quarter_from: Q2-016
+n_splits: 5
+fold: 0
+
+# ===== model ===== 
+# ===== for image ===== 
+model_name: efficientnet_b0
+num_classes: 11  # label_id 0-10
+pretrained: true
+img_size: 224
+embedding_dim: 512
+# ===== tabular features =====
+use_tabular: true
+num_features:
+  - angle_id
+  - fx
+  - fy
+  - dist_center
+  - rank_x
+  - rank_y
+  - nn_dist
+  - mean_dist
+  - shape_scale
+  - bbox_area
+  - bbox_aspect
+# =====  ArcFace設定 ===== 
+arcface_s: 30.0
+arcface_m: 0.5
+# ===== training ===== 
+batch_size: 128
+num_workers: 8
+epochs: 20
+lr: 0.001
+weight_decay: 0.0001
+ema_decay: 0.995
+use_ema: true
+
+# ===== unknown threshold (推論用) =====
+unknown_threshold: 0.5
