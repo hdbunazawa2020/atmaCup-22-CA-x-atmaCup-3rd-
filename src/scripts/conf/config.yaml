@@ -1,0 +1,6 @@
+defaults:
+- _self_
+- 100_train_arcface: 100_train_arcface_default
+- 000_preprocess: 000_preprocess_default
+- 200_optimize_threshold: 200_optimize_threshold_default
+- 300_infer: 300_infer_default

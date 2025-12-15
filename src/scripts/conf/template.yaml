@@ -3,4 +3,4 @@ seed: 1129
 # for Debug
 debug: false
 author: hidebu
-competition: kaggle_competition # TODO: コンペ名を入れる
+competition: atmacup22 # TODO: コンペ名を入れる

@@ -1,0 +1,11 @@
+author: hidebu
+competition: atmacup22
+crop_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/crops
+data_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/raw
+debug: false
+exp: 000_prepeocess_ver00
+image_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/raw/images
+output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
+padding_ratio: 0.1
+seed: 1129
+use_crops: true

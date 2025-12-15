@@ -1,0 +1,25 @@
+debug: false
+exp: 200_optimize_threshold_exp000
+holdout_ids:
+- 0
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
+- 8
+- 9
+metric: macro_f1
+oof_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment/100_train_arcface_exp000/oof/oof_df.csv
+pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
+pp_exp: 000_prepeocess_ver00
+seed: 1129
+thr_max: 0.95
+thr_min: 0.0
+thr_step: 0.01
+train_exp: 100_train_arcface_exp000
+train_output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
+train_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/train_meta_pp.csv
+unknown_mode: holdout_ids

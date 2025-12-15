@@ -3,7 +3,7 @@ import wandb
 def set_wandb(config):
     # set environment variables
     os.environ["WANDB_BASE_URL"] = "https://toyota.wandb.io" # トヨタのwandb
-    os.environ["WANDB_PROJECT"] = config["project"]
+    os.environ["WANDB_PROJECT"] = config.wandb_project
 
     # get wandb_api_key (for TOYOTA in house environment)
     wandb_api_key = os.getenv("WANDB_API_KEY") # export wandb_api_key before running program
