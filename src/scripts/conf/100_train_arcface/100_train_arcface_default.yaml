@@ -20,10 +20,14 @@ pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
 output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
 use_crops: true  # 高速読み込みのため事前クロップした画像を使用
 # preprocessデータ
-
-pp_exp: 000_prepeocess_ver00
-train_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/train_meta_pp.csv
-test_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver00/test_meta_pp.csv
+pp_exp: 000_prepeocess_ver01
+train_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver01/train_meta_pp.csv
+test_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver01/test_meta_pp.csv
+# drop junk
+drop_junk: true
+junk_col: is_junk
+# oof
+oof_tta_hflip: true
 # ===== split =====
 split_method: holdout  # holdout / sgkf
 val_quarter_from: Q2-016

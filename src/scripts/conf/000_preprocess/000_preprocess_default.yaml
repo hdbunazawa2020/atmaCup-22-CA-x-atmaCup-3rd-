@@ -1,4 +1,4 @@
-exp: 000_prepeocess_ver00  # TODO: 毎回、実験の連番を変える
+exp: 000_prepeocess_ver01  # TODO: 毎回、実験の連番を変える
 seed: 1129
 debug: false
 author: hidebu
@@ -16,3 +16,38 @@ output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processe
 # test は rel_path の crop が配布されるため、このフラグとは独立に常に crop を使う
 use_crops: true
 padding_ratio: 0.1
+
+# ============================
+# (NEW) train crop を test に寄せる: 足元/下側crop追加
+# ============================
+add_bottom_crops: true
+bottom_crop_apply_angles: ["top", "side"]  # "top"もやるなら ["top","side"]
+bottom_crop_jpeg_quality: 95
+
+# keep 40-70% from bottom (partial) -> まずは正例扱い候補
+bottom_partial_prob: 0.2
+bottom_partial_keep_min: 0.4
+bottom_partial_keep_max: 0.7
+
+# keep 10-25% from bottom (extreme) -> unknown/junk候補（is_junk=1で出す）
+bottom_extreme_prob: 0.05
+bottom_extreme_keep_min: 0.1
+bottom_extreme_keep_max: 0.25
+
+# crop増殖を formation_aug にも掛けるか（デフォOFF推奨：データが膨れる）
+bottom_crop_apply_to_all_formation: false
+
+# ============================
+# (NEW) train の n_players を test に寄せる: formation aug
+# ============================
+formation_aug_enable: true
+formation_aug_prob: 0.5  # 各frameに対して、baseに加えて1回だけaugを追加する確率
+
+# target_n をどこから取るか: uniform / from_test
+formation_aug_target_n_mode: from_test
+formation_aug_target_n_min: 8
+formation_aug_target_n_max: 14
+
+# target_n > n のときに足す dummy点のゆらぎ
+formation_dummy_jitter_std: 0.01
+formation_dummy_jitter_clip: 0.05

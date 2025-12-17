@@ -6,7 +6,7 @@ debug: false
 train_output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
 
 # preprocess（推論で使うppだけは明示）
-pp_exp: 000_prepeocess_ver00
+pp_exp: 000_prepeocess_ver01
 pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
 
 # 推論設定
@@ -15,15 +15,17 @@ batch_size: 256
 num_workers: 8
 device: cuda
 
-# unknown判定（200と合わせる）
-unknown_threshold: 0.7750000000000001
-margin_threshold: 0.000
-combine_mode: or        # "or" 推奨。andにすると「両方満たした時だけunknown」
-
+# threshold: 200の結果を読む（おすすめ）
 # 200の best_2d.txt を読み込んで unknown_threshold/margin_threshold を自動設定したい場合
-load_best_threshold: false
-best_threshold_file: best_2d.txt
-best_threshold_kind: median_nonzero  # median / median_nonzero
+load_threshold_from_200: true
+threshold_file: best_2d.txt
+thr_key: thr_median_nonzero
+mthr_key: mthr_median_nonzero # median / median_nonzero
+combine_mode: or
 
-# proto/test_emb をメタ一致なら再利用（閾値だけ変えて試すのが爆速になります）
-reuse_cache: true
+# fallback（ファイルが無い場合に備えて一応残す）
+unknown_threshold: 0.72
+margin_threshold: 0.03
+
+# prototypes 用に clean train を優先する
+use_clean_train_csv: true
