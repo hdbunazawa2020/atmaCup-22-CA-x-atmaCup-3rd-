@@ -1,31 +1,41 @@
-exp: 100_train_arcface_exp001
+exp: 100_train_arcface_exp005
 seed: 1129
 debug: false
 
-# exp配下に全部入れる
 train_output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
 
-# preprocess（推論で使うppだけは明示）
 pp_exp: 000_prepeocess_ver01
 pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
 
-# 推論設定
 tta_hflip: true
 batch_size: 256
 num_workers: 8
 device: cuda
 
-# threshold: 200の結果を読む（おすすめ）
-# 200の best_2d.txt を読み込んで unknown_threshold/margin_threshold を自動設定したい場合
+# threshold source
+threshold_source: auto   # json -> best_2d -> fallback
+
+# (autoの2番手として) 200の best_2d.txt を読む
 load_threshold_from_200: true
 threshold_file: best_2d.txt
 thr_key: thr_median_nonzero
-mthr_key: mthr_median_nonzero # median / median_nonzero
+mthr_key: mthr_median_nonzero
 combine_mode: or
 
-# fallback（ファイルが無い場合に備えて一応残す）
+# fallback
 unknown_threshold: 0.72
 margin_threshold: 0.03
 
-# prototypes 用に clean train を優先する
 use_clean_train_csv: true
+infer_name: 300_infer
+
+# classwise
+use_classwise_thresholds: true
+classwise_apply_mode: looser_sim_only
+classwise_use_margin: false
+classwise_sim_clip_delta: 0.15 # 0.15
+classwise_margin_clip_delta: 0.05
+
+# margin gate
+margin_gate_add: 0.10
+# margin_gate_sim: null

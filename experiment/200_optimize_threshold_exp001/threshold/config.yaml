@@ -1,5 +1,5 @@
 debug: false
-exp: 200_optimize_threshold_exp000
+exp: 200_optimize_threshold_exp001
 holdout_ids:
 - 0
 - 1
@@ -19,6 +19,5 @@ seed: 1129
 thr_max: 0.95
 thr_min: 0.0
 thr_step: 0.01
-train_exp: 100_train_arcface_exp000
 train_output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
 unknown_mode: holdout_ids

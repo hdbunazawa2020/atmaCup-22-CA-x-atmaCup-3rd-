@@ -1,5 +1,5 @@
 # ===== General ===== 
-exp: 100_train_arcface_exp001 # TODO: 毎回、実験の連番を変える
+exp: 100_train_arcface_exp006 # TODO: 毎回、実験の連番を変える
 seed: 1129
 # for Debug
 debug: false
@@ -72,3 +72,43 @@ use_ema: true
 
 # ===== unknown threshold (推論用) =====
 unknown_threshold: 0.5
+
+# =========================
+# threshold-aware CV (NEW)
+# =========================
+threshold_cv_enable: true
+# 何 epoch ごとに計算するか（毎epochなら 1）
+threshold_cv_every_n_epochs: 1
+# embedding の hflip TTA（oof と揃えるのが無難）
+threshold_cv_tta_hflip: true
+# prototype の作り方
+# - weights: ArcFace の class weight を prototype とみなす（高速）
+# - train  : train全量を舐めて prototype 作る（重いが推論に近い）
+threshold_cv_prototype_source: train # weights
+# grid search 範囲（とりあえず 200 と同じでもOK）
+# 速くしたいなら thr_min を 0.5 くらいに上げるのおすすめ
+threshold_cv_thr_min: 0.0
+threshold_cv_thr_max: 1.0
+threshold_cv_thr_step: 0.01
+threshold_cv_mthr_min: 0.0
+threshold_cv_mthr_max: 0.10
+threshold_cv_mthr_step: 0.005
+threshold_cv_combine_mode: or
+# pseudo-unknown の対象クラス
+threshold_cv_holdout_ids: [0,1,2] # 3,4,5,6,7,8,9,10
+# eval batch size（GPUに余裕があれば増やしてOK）
+threshold_cv_batch_size: 256
+threshold_cv_num_workers: 8
+# json保存（epochごと/best/latest）
+threshold_cv_save_json: true
+
+# =========================
+# checkpoint / early stop (OPTION)
+# =========================
+# まずは log だけ見たいなら val_f1 のままでOK
+# ckpt_monitor: val_f1
+# threshold-aware CV を monitor に使うならこれ
+ckpt_monitor: val_f1 # val_thr_cv
+ckpt_mode: max
+use_early_stopping: false # true
+early_stopping_patience: 5

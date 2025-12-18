@@ -44,28 +44,52 @@ class PlayerDataModule(pl.LightningDataModule):
     def setup(self, stage: str | None = None):
         df = pd.read_csv(self.train_pp_csv)
 
-        # angle_id を作る（top=1, side=0）
+        # angle_id
         df["angle_id"] = (df["angle"] == "top").astype(np.float32)
 
-        # frame内人数（rank_x反転などに使えるし、デバッグにも便利）
-        n_players = df.groupby(["quarter", "session", "frame"]).size().rename("n_players")
-        df = df.merge(n_players, on=["quarter", "session", "frame"], how="left")
-        df["n_players"] = df["n_players"].fillna(10).astype(int)
+        # -------------------------------------------------
+        # n_players（mergeをやめて transform で作る）
+        # これなら n_players 列が既にあっても上書きでき、suffix問題が起きない
+        # -------------------------------------------------
+        df["n_players"] = (
+            df.groupby(["quarter", "session", "frame"], sort=False)["angle"]
+              .transform("size")
+              .astype(np.int32)
+        )
 
-        # NaN埋め（特に mean_dist 等）
+        # -------------------------------------------------
+        # NaN埋め（num_featuresに含まれる列のみ）
+        # -------------------------------------------------
         for c in self.num_features:
             if c not in df.columns:
                 raise KeyError(f"num_feature not found in train pp csv: {c}")
             df[c] = df[c].fillna(0.0)
 
-        # split
+        # ------------------------------
+        # light normalization (safe)
+        # ------------------------------
+        # bbox_area は preprocess 側で log1p 済みなら二重変換になるので注意
+        # ここでは「未logならlogする」より、基本は preprocess 側に寄せるのが安全
+        # （いったん何もしない運用でもOK）
+
+        for c in ["dist_center", "nn_dist", "mean_dist"]:
+            if c in self.num_features:
+                df[c] = np.sqrt(np.clip(df[c].astype(np.float32), 0, None))
+
+        if "shape_scale" in self.num_features:
+            df["shape_scale"] = np.sqrt(np.clip(df["shape_scale"].astype(np.float32), 0, None))
+
+        if "n_players" in self.num_features:
+            df["n_players"] = df["n_players"].astype(np.float32) / 10.0
+
+        # split（以下はそのまま）
         if self.split_method == "holdout":
             val_mask = df["quarter"] >= self.val_quarter_from
             self.train_df = df[~val_mask].reset_index(drop=True)
             self.val_df = df[val_mask].reset_index(drop=True)
         elif self.split_method == "sgkf":
             sgkf = StratifiedGroupKFold(n_splits=self.n_splits, shuffle=True, random_state=self.seed)
-            groups = df["quarter"].astype(str)  # まずはquarter単位（必要なら session/frame 単位も可）
+            groups = df["quarter"].astype(str)
             y = df["label_id"].astype(int)
             tr_idx, va_idx = None, None
             for f, (tr, va) in enumerate(sgkf.split(df, y=y, groups=groups)):
@@ -76,9 +100,6 @@ class PlayerDataModule(pl.LightningDataModule):
             self.val_df = df.iloc[va_idx].reset_index(drop=True)
         else:
             raise ValueError(f"unknown split_method: {self.split_method}")
-
-        print(f"[DataModule] train={len(self.train_df)} val={len(self.val_df)}")
-        print(f"[DataModule] val quarters: {sorted(self.val_df['quarter'].unique().tolist())}")
 
     def train_dataloader(self):
         ds = PlayerDataset(

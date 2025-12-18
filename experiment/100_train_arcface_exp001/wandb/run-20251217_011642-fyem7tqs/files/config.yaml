@@ -1,0 +1,170 @@
+_wandb:
+    value:
+        cli_version: 0.23.1
+        code_path: code/src/scripts/100_train_arcface/100_train_arcface.py
+        e:
+            74oztkc1gxjpcw4pvndm01ocqayi319p:
+                codePath: src/scripts/100_train_arcface/100_train_arcface.py
+                codePathLocal: 100_train_arcface/100_train_arcface.py
+                cpu_count: 24
+                cpu_count_logical: 32
+                disk:
+                    /:
+                        total: "2013991550976"
+                        used: "947236139008"
+                email: hideaki_bunazawa@mail.toyota.co.jp
+                executable: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/.venv/bin/python
+                git:
+                    commit: e09d5937c3b82a315c001241cbf3645d0067c049
+                    remote: git@github.com:hdbunazawa2020/atmaCup-22-CA-x-atmaCup-3rd-.git
+                host: d88a5437863c
+                memory:
+                    total: "134675341312"
+                os: Linux-6.14.0-34-generic-x86_64-with-glibc2.35
+                program: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/src/scripts/./100_train_arcface/100_train_arcface.py
+                python: CPython 3.12.11
+                root: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment/100_train_arcface_exp001
+                startedAt: "2025-12-17T01:16:42.338805Z"
+                writerId: 74oztkc1gxjpcw4pvndm01ocqayi319p
+        m:
+            - "1": trainer/global_step
+              "6":
+                - 3
+              "7": []
+            - "2": '*'
+              "5": 1
+              "6":
+                - 1
+              "7": []
+        python_version: 3.12.11
+        t:
+            "1":
+                - 1
+                - 5
+                - 9
+                - 41
+                - 49
+                - 50
+                - 53
+                - 63
+                - 80
+                - 103
+            "2":
+                - 1
+                - 5
+                - 9
+                - 41
+                - 49
+                - 50
+                - 53
+                - 63
+                - 80
+                - 103
+            "3":
+                - 7
+                - 13
+                - 66
+            "4": 3.12.11
+            "5": 0.23.1
+            "8":
+                - 2
+            "12": 0.23.1
+            "13": linux-x86_64
+arcface_m:
+    value: 0.5
+arcface_s:
+    value: 30
+author:
+    value: hidebu
+batch_size:
+    value: 128
+crop_dir:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/crops
+data_dir:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/raw
+debug:
+    value: false
+device:
+    value: cuda
+drop_junk:
+    value: true
+ema_decay:
+    value: 0.995
+embedding_dim:
+    value: 512
+epochs:
+    value: 20
+exp:
+    value: 100_train_arcface_exp001
+fold:
+    value: 0
+image_dir:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/raw/images
+img_size:
+    value: 224
+junk_col:
+    value: is_junk
+lr:
+    value: 0.001
+model_name:
+    value: efficientnet_b0
+n_splits:
+    value: 5
+num_classes:
+    value: 11
+num_features:
+    value:
+        - angle_id
+        - fx
+        - fy
+        - dist_center
+        - rank_x
+        - rank_y
+        - rank_x_norm
+        - rank_y_norm
+        - nn_dist
+        - mean_dist
+        - shape_scale
+        - bbox_area
+        - bbox_aspect
+        - n_players
+num_tabular_features:
+    value: 14
+num_workers:
+    value: 8
+oof_tta_hflip:
+    value: true
+output_dir:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
+pp_dir:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
+pp_exp:
+    value: 000_prepeocess_ver01
+pretrained:
+    value: true
+seed:
+    value: 1129
+split_method:
+    value: holdout
+test_pp_csv:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver01/test_meta_pp.csv
+train_pp_csv:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver01/train_meta_pp.csv
+unknown_threshold:
+    value: 0.5
+use_crops:
+    value: true
+use_ema:
+    value: true
+use_tabular:
+    value: true
+use_wandb:
+    value: true
+val_quarter_from:
+    value: Q2-016
+wandb_project:
+    value: atmacup22
+wandb_run_name:
+    value: new_atmacup_22
+weight_decay:
+    value: 0.0001
