@@ -1,0 +1,31 @@
+combine_mode: or
+debug: false
+exp: 100_train_arcface_exp006
+folds:
+- 0
+- 1
+- 2
+- 3
+holdout_ids:
+- 0
+- 1
+- 2
+- 3
+- 4
+- 5
+- 6
+- 7
+- 8
+- 9
+- 10
+metric: macro_f1
+mthr_max: 0.1
+mthr_min: 0.0
+mthr_step: 0.005
+save_grid: false
+seed: 1129
+thr_max: 1.0
+thr_min: 0.0
+thr_step: 0.01
+train_output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
+unknown_mode: holdout_ids

@@ -1,10 +1,14 @@
-exp: 100_train_arcface_exp005
+exp: 100_train_arcface_exp006   # fold0でもOK（コードが base に剥がします）
+folds: [0, 1, 2, 3]
+
+ensemble_enable: true
+ensemble_exp_suffix: "_ens"   # 100_train_arcface_exp006_ens が作られる
 seed: 1129
 debug: false
 
 train_output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
 
-pp_exp: 000_prepeocess_ver01
+pp_exp: 000_prepeocess_ver02
 pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
 
 tta_hflip: true
@@ -23,8 +27,8 @@ mthr_key: mthr_median_nonzero
 combine_mode: or
 
 # fallback
-unknown_threshold: 0.72
-margin_threshold: 0.03
+unknown_threshold: 0.720
+margin_threshold: 0.000
 
 use_clean_train_csv: true
 infer_name: 300_infer
@@ -39,3 +43,32 @@ classwise_margin_clip_delta: 0.05
 # margin gate
 margin_gate_add: 0.10
 # margin_gate_sim: null
+
+# =========================
+# ILP postprocess (NEW)
+# =========================
+ilp_enable: true
+
+# グルーピング（動画単位）
+ilp_group_cols: ["quarter", "session", "angle"]
+ilp_frame_col: "frame"
+
+# 位置情報（dist計算に使う。fx/fy がある前提）
+ilp_pos_cols: ["fx", "fy"]
+ilp_pos_norm: "minmax"   # "none" / "minmax"
+
+# スコアの作り方
+ilp_unknown_score: 0.77     # NO_PERSON(=0) のスコア。unknown_threshold をそのまま使うのが簡単
+ilp_score_scale: 10.0       # sims(0.7~0.9)の差が小さいので温度を上げると効きやすい
+
+# 制約パラメータ（discussionの値を初期値に）
+ilp_mu: 2.0
+ilp_lambda_1: 1.0
+ilp_lambda_2: 0.5
+ilp_max_dist: 1.0
+
+# 人数制約（<=10）
+ilp_max_players: 10
+
+# solverオプション（重い場合に使う）
+ilp_time_limit: 0   # 0=無制限（秒）。重いなら 2~5 くらい

@@ -1,0 +1,237 @@
+_wandb:
+    value:
+        cli_version: 0.23.1
+        code_path: code/src/scripts/100_train_arcface/100_train_arcface.py
+        e:
+            fe9t7a3k6zzob1rsiadupjke1fhj5e1t:
+                codePath: src/scripts/100_train_arcface/100_train_arcface.py
+                codePathLocal: 100_train_arcface/100_train_arcface.py
+                cpu_count: 24
+                cpu_count_logical: 48
+                cudaVersion: "12.2"
+                disk:
+                    /:
+                        total: "942858350592"
+                        used: "874599907328"
+                email: hideaki_bunazawa@mail.toyota.co.jp
+                executable: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/.venv/bin/python
+                git:
+                    commit: a3a5ab2db3aa911ba6695dc3bab92184272e8d9a
+                    remote: git@github.com:hdbunazawa2020/atmaCup-22-CA-x-atmaCup-3rd-.git
+                gpu: NVIDIA A100 80GB PCIe
+                gpu_count: 2
+                gpu_nvidia:
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100 80GB PCIe
+                      uuid: GPU-7f713fb1-3cbf-1063-905c-2b9c8dbb25dd
+                    - architecture: Ampere
+                      cudaCores: 6912
+                      memoryTotal: "85899345920"
+                      name: NVIDIA A100 80GB PCIe
+                      uuid: GPU-c440b9ac-6be2-3fe6-4154-00b5fd4197a8
+                host: 02599e2c0211
+                memory:
+                    total: "270099329024"
+                os: Linux-5.4.0-26-generic-x86_64-with-glibc2.35
+                program: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/src/scripts/./100_train_arcface/100_train_arcface.py
+                python: CPython 3.12.10
+                root: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment/100_train_arcface_exp008_fold0
+                startedAt: "2025-12-20T09:42:27.203180Z"
+                writerId: fe9t7a3k6zzob1rsiadupjke1fhj5e1t
+        m:
+            - "1": trainer/global_step
+              "6":
+                - 3
+              "7": []
+            - "2": '*'
+              "5": 1
+              "6":
+                - 1
+              "7": []
+        python_version: 3.12.10
+        t:
+            "1":
+                - 1
+                - 5
+                - 9
+                - 41
+                - 49
+                - 50
+                - 53
+                - 63
+                - 80
+                - 103
+            "2":
+                - 1
+                - 5
+                - 9
+                - 41
+                - 49
+                - 50
+                - 53
+                - 63
+                - 80
+                - 103
+            "3":
+                - 7
+                - 13
+                - 66
+            "4": 3.12.10
+            "5": 0.23.1
+            "12": 0.23.1
+            "13": linux-x86_64
+arcface_m:
+    value: 0.5
+arcface_s:
+    value: 30
+author:
+    value: hidebu
+batch_size:
+    value: 128
+ckpt_mode:
+    value: max
+ckpt_monitor:
+    value: val_f1
+crop_dir:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/crops
+data_dir:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/raw
+debug:
+    value: false
+device:
+    value: cuda
+drop_junk:
+    value: true
+early_stopping_patience:
+    value: 5
+ema_decay:
+    value: 0.995
+embedding_dim:
+    value: 512
+epochs:
+    value: 20
+exp:
+    value: 100_train_arcface_exp008_fold0
+fold:
+    value: 0
+folds:
+    value:
+        - 0
+        - 1
+        - 2
+        - 3
+image_dir:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/raw/images
+img_size:
+    value: 384
+junk_col:
+    value: is_junk
+lr:
+    value: 0.001
+model_name:
+    value: efficientnet_b0
+n_splits:
+    value: 4
+num_classes:
+    value: 11
+num_features:
+    value:
+        - angle_id
+        - fx
+        - fy
+        - dist_center
+        - rank_x
+        - rank_y
+        - rank_x_norm
+        - rank_y_norm
+        - nn_dist
+        - mean_dist
+        - shape_scale
+        - bbox_area
+        - bbox_aspect
+        - n_players
+num_tabular_features:
+    value: 14
+num_workers:
+    value: 8
+oof_tta_hflip:
+    value: true
+output_dir:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
+pp_dir:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
+pp_exp:
+    value: 000_prepeocess_ver03
+pretrained:
+    value: true
+seed:
+    value: 1129
+split_method:
+    value: sgkf
+test_pp_csv:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver03/test_meta_pp.csv
+threshold_cv_batch_size:
+    value: 256
+threshold_cv_combine_mode:
+    value: or
+threshold_cv_enable:
+    value: true
+threshold_cv_every_n_epochs:
+    value: 1
+threshold_cv_holdout_ids:
+    value:
+        - 0
+        - 1
+        - 2
+        - 3
+        - 4
+        - 5
+        - 6
+        - 7
+        - 8
+        - 9
+        - 10
+threshold_cv_mthr_max:
+    value: 0.1
+threshold_cv_mthr_min:
+    value: 0
+threshold_cv_mthr_step:
+    value: 0.005
+threshold_cv_num_workers:
+    value: 8
+threshold_cv_prototype_source:
+    value: train
+threshold_cv_save_json:
+    value: true
+threshold_cv_thr_max:
+    value: 1
+threshold_cv_thr_min:
+    value: 0
+threshold_cv_thr_step:
+    value: 0.01
+threshold_cv_tta_hflip:
+    value: true
+train_pp_csv:
+    value: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver03/train_meta_pp.csv
+unknown_threshold:
+    value: 0.5
+use_crops:
+    value: true
+use_early_stopping:
+    value: false
+use_ema:
+    value: true
+use_tabular:
+    value: true
+use_wandb:
+    value: true
+val_quarter_from:
+    value: Q2-016
+wandb_project:
+    value: atmacup22
+wandb_run_name:
+    value: new_atmacup_22
+weight_decay:
+    value: 0.0001

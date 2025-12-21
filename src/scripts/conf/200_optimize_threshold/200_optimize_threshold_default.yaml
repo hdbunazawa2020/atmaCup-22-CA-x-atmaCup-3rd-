@@ -1,4 +1,5 @@
-exp: 100_train_arcface_exp001
+exp: 100_train_arcface_exp010
+folds: [0,1,2,3]
 seed: 1129
 debug: false
 

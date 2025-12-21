@@ -1,6 +1,7 @@
 import os
 from pathlib import Path
 import json
+import re
 
 import numpy as np
 import pandas as pd
@@ -89,41 +90,52 @@ def save_margin_quantiles(oof: pd.DataFrame, outdir: Path) -> None:
         print(f"margin < {t:>5}: {stats[f'margin_lt_{t}']:.4f}")
 
 # ========================
-# main
+# helpers for folds/OOF
 # ========================
-@hydra.main(version_base=None, config_path="../conf", config_name="config.yaml")
-def main(cfg: DictConfig) -> None:
-    infer_cfg = OmegaConf.to_container(cfg["200_optimize_threshold"], resolve=True)
-    config = dict_to_namespace(infer_cfg)
+def _strip_fold_suffix(exp: str) -> str:
+    return re.sub(r"_fold\d+$", "", exp)
 
-    if getattr(config, "debug", False):
-        config.exp = "200_optimize_threshold_debug"
+def find_oof_csv(exp_dir: Path) -> Path:
+    oof_dir = exp_dir / "oof"
+    p = oof_dir / "oof_df.csv"
+    if p.exists():
+        return p
+    cands = sorted(oof_dir.glob("oof_df*.csv"))
+    if len(cands) == 1:
+        return cands[0]
+    if len(cands) == 0:
+        raise FileNotFoundError(f"OOF not found in: {oof_dir} (expected oof_df.csv or oof_df*.csv)")
+    raise FileNotFoundError(f"Multiple OOF files found in {oof_dir}: {cands}")
 
-    exp_dir = Path(config.train_output_dir) / str(config.exp)
+# ========================
+# per-exp run
+# ========================
+def run_one_exp(exp_dir: Path, config) -> None:
+    exp_dir = Path(exp_dir)
+    print(f"\n==============================")
+    print(f"[200] exp_dir = {exp_dir}")
+    print(f"==============================")
+
     savedir = exp_dir / "threshold"
     savedir.mkdir(parents=True, exist_ok=True)
     save_config_yaml(config, savedir / "200_config.yaml")
 
     # load oof
-    oof_csv = exp_dir / "oof" / "oof_df.csv"
-    if not oof_csv.exists():
-        raise FileNotFoundError(f"oof_df.csv not found: {oof_csv}")
+    oof_csv = find_oof_csv(exp_dir)
+    print("[oof] loaded:", oof_csv)
 
     oof = pd.read_csv(oof_csv)
     need = {"y", "pred", "max_sim", "second_sim"}
     if not need.issubset(set(oof.columns)):
         raise ValueError(f"oof_df.csv must contain {need}. got {list(oof.columns)}")
 
-    # diagnostics
     save_margin_quantiles(oof, savedir)
 
-    # arrays
     y_true = oof["y"].to_numpy(dtype=int)
     pred_class = oof["pred"].to_numpy(dtype=int)
     max_sim = oof["max_sim"].to_numpy(dtype=float)
     second_sim = oof["second_sim"].to_numpy(dtype=float)
 
-    # config
     metric = str(getattr(config, "metric", "macro_f1"))
     combine_mode = str(getattr(config, "combine_mode", "or"))
     print("\ncombine_mode:", combine_mode)
@@ -133,25 +145,26 @@ def main(cfg: DictConfig) -> None:
     if len(holdout_list) == 0:
         raise ValueError("holdout_ids is empty. set unknown_mode=holdout_ids and holdout_ids=[...]")
 
-    # search space
     thrs = np.arange(float(config.thr_min), float(config.thr_max) + 1e-9, float(config.thr_step))
     mthrs = np.arange(float(config.mthr_min), float(config.mthr_max) + 1e-9, float(config.mthr_step))
     save_grid = bool(getattr(config, "save_grid", False))
 
-    # baseline
     base_score = float(f1_score(y_true, pred_class, average="macro"))
-    with open(savedir / "baseline.txt", "w") as f:
-        f.write(f"macro_f1_no_unknown={base_score}\n")
+    (savedir / "baseline.txt").write_text(f"macro_f1_no_unknown={base_score}\n")
     print("\n[baseline] macro_f1 (no unknown):", base_score)
 
-    # optimize per holdout id
     records = []
     for hid in holdout_list:
         hid = int(hid)
+
+        # ★ 保険：そのfoldのvalに存在しないクラスはスキップ
+        if (y_true == hid).sum() == 0:
+            print(f"[skip] holdout_id={hid} not in y_true. skip.")
+            continue
+
         best_score = -1e9
         best_thr = None
         best_mthr = None
-
         grid_records = []
 
         for thr_sim in thrs:
@@ -174,52 +187,50 @@ def main(cfg: DictConfig) -> None:
                     best_thr = float(thr_sim)
                     best_mthr = float(thr_margin)
 
-        records.append({
-            "holdout_id": hid,
-            "best_score": best_score,
-            "best_thr": best_thr,
-            "best_mthr": best_mthr,
-        })
+        records.append({"holdout_id": hid, "best_score": best_score, "best_thr": best_thr, "best_mthr": best_mthr})
 
         if save_grid:
-            grid_df = pd.DataFrame(grid_records, columns=["holdout_id", "thr", "mthr", "score"])
-            grid_df.to_csv(savedir / f"thr2d_grid_id{hid}.csv", index=False)
+            pd.DataFrame(grid_records, columns=["holdout_id", "thr", "mthr", "score"]).to_csv(
+                savedir / f"thr2d_grid_id{hid}.csv", index=False
+            )
+
+    if len(records) == 0:
+        raise RuntimeError("No holdout_id was optimized (maybe all holdout ids are absent in this fold).")
 
     df_runs = pd.DataFrame(records).sort_values("holdout_id")
     df_runs.to_csv(savedir / "thr2d_runs.csv", index=False)
 
     thr_median = float(np.median(df_runs["best_thr"].values))
     mthr_median = float(np.median(df_runs["best_mthr"].values))
-
     nz = df_runs[df_runs["best_thr"] > 0.0]
     thr_median_nz = float(np.median(nz["best_thr"].values)) if len(nz) else thr_median
     mthr_median_nz = float(np.median(nz["best_mthr"].values)) if len(nz) else mthr_median
 
-    # cv score with "all holdout ids treated as unknown"
-    cv_score_median = score_with_unknown_2d(
-        y_true=y_true,
-        pred_class=pred_class,
-        max_sim=max_sim,
-        second_sim=second_sim,
-        thr_sim=thr_median,
-        thr_margin=mthr_median,
-        unknown_ids=[int(x) for x in holdout_list],
-        metric=metric,
-        combine_mode=combine_mode,
-    )
-    cv_score_median_nz = score_with_unknown_2d(
-        y_true=y_true,
-        pred_class=pred_class,
-        max_sim=max_sim,
-        second_sim=second_sim,
-        thr_sim=thr_median_nz,
-        thr_margin=mthr_median_nz,
-        unknown_ids=[int(x) for x in holdout_list],
-        metric=metric,
-        combine_mode=combine_mode,
-    )
+    # cv score (use only ids that were actually optimized)
+    used_ids = df_runs["holdout_id"].astype(int).tolist()
 
-    # best_2d.txt (300互換)
+    def score_holdout_mean(thr_sim: float, thr_margin: float) -> float:
+        ss = []
+        for hid in holdout_list:
+            ss.append(score_with_unknown_2d(
+                y_true=y_true,
+                pred_class=pred_class,
+                max_sim=max_sim,
+                second_sim=second_sim,
+                thr_sim=float(thr_sim),
+                thr_margin=float(thr_margin),
+                unknown_ids=[int(hid)],   # ★ 1つずつ
+                metric=metric,
+                combine_mode=combine_mode,
+            ))
+        return float(np.mean(ss))
+
+    cv_score_median = score_holdout_mean(thr_median, mthr_median)
+    cv_score_median_nz = score_holdout_mean(thr_median_nz, mthr_median_nz)
+
+    print(f"[cv] holdout-mean score @ median thr/mthr: {cv_score_median}")
+    print(f"[cv] holdout-mean score @ median_nonzero thr/mthr: {cv_score_median_nz}")
+
     with open(savedir / "best_2d.txt", "w") as f:
         f.write(f"thr_median={thr_median}\n")
         f.write(f"mthr_median={mthr_median}\n")
@@ -227,23 +238,19 @@ def main(cfg: DictConfig) -> None:
         f.write(f"mthr_median_nonzero={mthr_median_nz}\n")
         f.write(f"metric={metric}\n")
         f.write(f"combine_mode={combine_mode}\n")
-        f.write(f"holdout_ids={holdout_list}\n")
+        f.write(f"holdout_ids={used_ids}\n")
         f.write(f"baseline_macro_f1_no_unknown={base_score}\n")
         f.write(f"cv_score_median={cv_score_median}\n")
         f.write(f"cv_score_median_nonzero={cv_score_median_nz}\n")
 
-    # classwise thresholds
-    classwise = {}
-    for _, r in df_runs.iterrows():
-        cid = int(r["holdout_id"])
-        classwise[str(cid)] = {
-            "thr_sim": float(r["best_thr"]),
-            "thr_margin": float(r["best_mthr"]),
-            "best_score": float(r["best_score"]),
-        }
+    classwise = {str(int(r["holdout_id"])): {
+        "thr_sim": float(r["best_thr"]),
+        "thr_margin": float(r["best_mthr"]),
+        "best_score": float(r["best_score"]),
+    } for _, r in df_runs.iterrows()}
 
     payload = {
-        "exp": str(config.exp),
+        "exp_dir": str(exp_dir),
         "metric": metric,
         "combine_mode": combine_mode,
         "global": {
@@ -259,8 +266,7 @@ def main(cfg: DictConfig) -> None:
     }
 
     json_path = savedir / "classwise_thresholds.json"
-    with open(json_path, "w") as f:
-        json.dump(payload, f, indent=2, ensure_ascii=False)
+    json_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False))
 
     print("\n", df_runs)
     print("thr_median:", thr_median, "mthr_median:", mthr_median)
@@ -269,6 +275,25 @@ def main(cfg: DictConfig) -> None:
     print(f"[cv] ({combine_mode}) score @ median_nonzero thr/mthr:", cv_score_median_nz)
     print("[saved] classwise thresholds:", json_path)
     print("saved:", savedir)
+
+# ========================
+# main
+# ========================
+@hydra.main(version_base=None, config_path="../conf", config_name="config.yaml")
+def main(cfg: DictConfig) -> None:
+    infer_cfg = OmegaConf.to_container(cfg["200_optimize_threshold"], resolve=True)
+    config = dict_to_namespace(infer_cfg)
+
+    base_exp = _strip_fold_suffix(str(config.exp))
+    folds = list(getattr(config, "folds", []))
+
+    if len(folds) > 0:
+        exp_dirs = [Path(config.train_output_dir) / f"{base_exp}_fold{int(f)}" for f in folds]
+    else:
+        exp_dirs = [Path(config.train_output_dir) / str(config.exp)]
+
+    for exp_dir in exp_dirs:
+        run_one_exp(exp_dir, config)
 
 if __name__ == "__main__":
     main()

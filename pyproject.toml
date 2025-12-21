@@ -38,4 +38,5 @@ dependencies = [
     "pytorch-lightning>=2.6.0",
     "rich>=14.2.0",
     "ipympl>=0.9.8",
+    "pulp>=3.3.0",
 ]

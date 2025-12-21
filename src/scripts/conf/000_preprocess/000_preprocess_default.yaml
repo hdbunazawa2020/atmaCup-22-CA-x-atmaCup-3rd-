@@ -1,4 +1,4 @@
-exp: 000_prepeocess_ver01  # TODO: 毎回、実験の連番を変える
+exp: 000_prepeocess_ver03  # TODO: 毎回、実験の連番を変える
 seed: 1129
 debug: false
 author: hidebu
@@ -51,3 +51,33 @@ formation_aug_target_n_max: 14
 # target_n > n のときに足す dummy点のゆらぎ
 formation_dummy_jitter_std: 0.01
 formation_dummy_jitter_clip: 0.05
+
+# ============================
+# (NEW) no-player / background crops (train only)
+# ============================
+add_bg_crops: true
+bg_apply_angles: ["top", "side"]
+
+# 1フレーム(=quarter/session/frame/angle)あたり何個作るか
+bg_per_frame: 1
+
+# ★ padding後crop領域の max IoU がこの値以下なら採用
+# 0.0 にすると「完全に非交差」を強制できる（no-player寄り）
+bg_iou_thr: 0.0
+bg_max_trials: 80
+
+# bbox サイズは GT の (w,h) をサンプルしてスケール jitter
+bg_wh_scale_min: 0.8
+bg_wh_scale_max: 1.2
+bg_min_wh: 16
+
+# train では使わない（label_id=-1 だから） → is_junk=1 を推奨
+bg_mark_as_junk: true
+bg_crop_variant: "bg_random"
+
+# ============================
+# (NEW) crop resize (train/test)
+# ============================
+crop_output_size: 384   # null なら従来通り
+crop_interp: area       # area / linear / cubic
+crop_jpeg_quality: 95

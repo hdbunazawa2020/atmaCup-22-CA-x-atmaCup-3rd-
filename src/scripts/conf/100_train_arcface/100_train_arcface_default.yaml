@@ -1,6 +1,6 @@
 # ===== General ===== 
-exp: 100_train_arcface_exp006 # TODO: 毎回、実験の連番を変える
-seed: 1129
+exp: 100_train_arcface_exp012 # TODO: 毎回、実験の連番を変える
+seed: 626 #1129
 # for Debug
 debug: false
 author: hidebu
@@ -20,27 +20,27 @@ pp_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed
 output_dir: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/experiment
 use_crops: true  # 高速読み込みのため事前クロップした画像を使用
 # preprocessデータ
-pp_exp: 000_prepeocess_ver01
-train_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver01/train_meta_pp.csv
-test_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver01/test_meta_pp.csv
+pp_exp: 000_prepeocess_ver03
+train_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver03/train_meta_pp.csv
+test_pp_csv: /mnt/nfs/home/hidebu/study/atmaCup-22-CA-x-atmaCup-3rd/data/processed/000_prepeocess_ver03/test_meta_pp.csv
 # drop junk
 drop_junk: true
 junk_col: is_junk
 # oof
 oof_tta_hflip: true
 # ===== split =====
-split_method: holdout  # holdout / sgkf
+split_method: sgkf  # holdout / sgkf
 val_quarter_from: Q2-016
-n_splits: 5
-fold: 0
+n_splits: 4
+folds: [0,1,2,3]
 
 # ===== model ===== 
 # ===== for image ===== 
-model_name: efficientnet_b0
+model_name: efficientnet_b3 # efficientnet_b0 | convnext_tiny | convnext_base | swin_base_patch4_window12_384
 num_classes: 11  # label_id 0-10
 pretrained: true
-img_size: 224
-embedding_dim: 512
+img_size: 384 # 224
+embedding_dim: 512 # 768 # 512
 # ===== tabular features =====
 use_tabular: true
 num_features:
@@ -62,7 +62,7 @@ num_features:
 arcface_s: 30.0
 arcface_m: 0.5
 # ===== training ===== 
-batch_size: 128
+batch_size: 128 # 128
 num_workers: 8
 epochs: 20
 lr: 0.001
@@ -95,7 +95,7 @@ threshold_cv_mthr_max: 0.10
 threshold_cv_mthr_step: 0.005
 threshold_cv_combine_mode: or
 # pseudo-unknown の対象クラス
-threshold_cv_holdout_ids: [0,1,2] # 3,4,5,6,7,8,9,10
+threshold_cv_holdout_ids: [0,1,2,3,4,5,6,7,8,9,10] # 3,4,5,6,7,8,9,10
 # eval batch size（GPUに余裕があれば増やしてOK）
 threshold_cv_batch_size: 256
 threshold_cv_num_workers: 8
@@ -108,7 +108,7 @@ threshold_cv_save_json: true
 # まずは log だけ見たいなら val_f1 のままでOK
 # ckpt_monitor: val_f1
 # threshold-aware CV を monitor に使うならこれ
-ckpt_monitor: val_f1 # val_thr_cv
+ckpt_monitor: val_thr_cv # val_thr_cv | val_f1
 ckpt_mode: max
 use_early_stopping: false # true
 early_stopping_patience: 5
